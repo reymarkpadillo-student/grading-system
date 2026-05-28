@@ -1,4 +1,4 @@
-# Grading System
+# grading-system
 
 ## Group Members and Tasks
 
