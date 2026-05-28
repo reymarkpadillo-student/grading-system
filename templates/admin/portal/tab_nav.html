@@ -1,0 +1,100 @@
+{% load i18n %}
+
+{% comment %}
+  Shared Dept → Year Level → Block tab navigation bar.
+  Rendered via list_before_template on multiple ModelAdmin classes.
+  Context: tab_depts, tab_years, tab_blocks, active_dept, active_yr, active_blk
+           all_dept_url, all_yr_url, all_blk_url
+{% endcomment %}
+
+<style>
+  .mc-tabs-wrap  { margin-bottom: 1.5rem; }
+  .mc-tabs-row   { display: flex; flex-wrap: wrap; align-items: center;
+                   gap: .4rem; margin-bottom: .45rem; }
+  .mc-tabs-label { font-size: .63rem; font-weight: 700; letter-spacing: .08em;
+                   text-transform: uppercase; color: rgba(255,255,255,.32);
+                   min-width: 6.5rem; padding-right: .5rem; white-space: nowrap; }
+  .mc-tab        { display: inline-flex; align-items: center; gap: .3rem;
+                   padding: .28rem .85rem; border-radius: 9999px;
+                   font-size: .78rem; font-weight: 600; text-decoration: none;
+                   border: 1px solid rgba(255,255,255,.1);
+                   color: rgba(255,255,255,.55);
+                   background: rgba(255,255,255,.04);
+                   transition: background .15s, color .15s, border-color .15s; }
+  .mc-tab:hover  { background: rgba(255,255,255,.1); color: #fff;
+                   border-color: rgba(255,255,255,.22); }
+  .mc-tab.active { background: rgb(2,132,199); color: #fff;
+                   border-color: transparent;
+                   box-shadow: 0 0 0 3px rgba(2,132,199,.22); }
+  .mc-tab .mc-ck { font-size: .65rem; opacity: .75; }
+  .mc-divider    { height: 1px; background: rgba(255,255,255,.06); margin: .5rem 0; }
+  .mc-indent     { padding-left: 7rem; }
+  .mc-indent2    { padding-left: 8rem; }
+  .mc-crumb      { font-size: .72rem; color: rgba(255,255,255,.38);
+                   padding-left: .25rem; margin-top: .3rem; }
+  .mc-crumb span { color: rgba(255,255,255,.7); }
+</style>
+
+<div class="mc-tabs-wrap">
+
+  {# ── Department row ──────────────────────────────────────────── #}
+  <div class="mc-tabs-row">
+    <span class="mc-tabs-label">{% trans "Department" %}</span>
+    <a href="{{ all_dept_url }}" class="mc-tab {% if not active_dept %}active{% endif %}">
+      {% trans "All" %}
+    </a>
+    {% for item in tab_depts %}
+      <a href="{{ item.url }}" class="mc-tab {% if item.active %}active{% endif %}" title="{{ item.obj.name }}">
+        {{ item.obj.short_name|default:item.obj.name }}
+        {% if item.active %}<span class="mc-ck">✓</span>{% endif %}
+      </a>
+    {% endfor %}
+  </div>
+
+  {# ── Year Level row (shown after a dept is selected) ─────────── #}
+  {% if active_dept and tab_years %}
+    <div class="mc-divider"></div>
+    <div class="mc-tabs-row mc-indent">
+      <span class="mc-tabs-label" style="min-width:0;margin-right:.5rem;">{% trans "Year" %}</span>
+      <a href="{{ all_yr_url }}" class="mc-tab {% if not active_yr %}active{% endif %}">
+        {% trans "All Years" %}
+      </a>
+      {% for item in tab_years %}
+        <a href="{{ item.url }}" class="mc-tab {% if item.active %}active{% endif %}">
+          {{ item.obj.name }}
+          {% if item.active %}<span class="mc-ck">✓</span>{% endif %}
+        </a>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {# ── Block row (shown after a year level is selected) ────────── #}
+  {% if active_yr and tab_blocks %}
+    <div class="mc-tabs-row mc-indent2">
+      <span class="mc-tabs-label" style="min-width:0;margin-right:.5rem;">{% trans "Block" %}</span>
+      <a href="{{ all_blk_url }}" class="mc-tab {% if not active_blk %}active{% endif %}">
+        {% trans "All Blocks" %}
+      </a>
+      {% for item in tab_blocks %}
+        <a href="{{ item.url }}" class="mc-tab {% if item.active %}active{% endif %}">
+          {{ item.obj.name }}
+          {% if item.active %}<span class="mc-ck">✓</span>{% endif %}
+        </a>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="mc-divider"></div>
+
+  {# ── Breadcrumb summary ───────────────────────────────────────── #}
+  <div class="mc-crumb">
+    {% if active_dept %}
+      <span>{{ active_dept.name }}</span>
+      {% if active_yr %} › <span>{{ active_yr.name }}</span>{% endif %}
+      {% if active_blk %} › <span>{{ active_blk.name }}</span>{% endif %}
+    {% else %}
+      {% trans "Showing all departments" %}
+    {% endif %}
+  </div>
+
+</div>

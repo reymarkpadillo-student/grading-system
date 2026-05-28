@@ -1,0 +1,109 @@
+{% load i18n %}
+
+{% comment %}
+  Tab navigation for Records & Grades admin.
+  Injected via RecordAdmin.list_before_template.
+  Context vars: tab_depts, tab_years, tab_blocks, active_dept, active_yr, active_blk
+{% endcomment %}
+
+<style>
+  .mc-tabs-wrap   { margin-bottom: 1.5rem; }
+  .mc-tabs-row    { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem;
+                    margin-bottom: .5rem; }
+  .mc-tabs-label  { font-size: .65rem; font-weight: 700; letter-spacing: .08em;
+                    text-transform: uppercase; color: rgba(255,255,255,.35);
+                    min-width: 6rem; padding-right: .5rem; white-space: nowrap; }
+  .mc-tab         { display: inline-flex; align-items: center; gap: .35rem;
+                    padding: .3rem .85rem; border-radius: 9999px;
+                    font-size: .78rem; font-weight: 600; text-decoration: none;
+                    border: 1px solid rgba(255,255,255,.1);
+                    color: rgba(255,255,255,.6);
+                    background: rgba(255,255,255,.04);
+                    transition: background .15s, color .15s, border-color .15s; }
+  .mc-tab:hover   { background: rgba(255,255,255,.09); color: #fff;
+                    border-color: rgba(255,255,255,.22); }
+  .mc-tab.active  { background: rgb(2,132,199); color: #fff;
+                    border-color: rgb(2,132,199); box-shadow: 0 0 0 3px rgba(2,132,199,.2); }
+  .mc-tab .mc-badge { font-size: .65rem; background: rgba(0,0,0,.25);
+                       padding: .05rem .4rem; border-radius: 9999px; }
+  .mc-tab.active .mc-badge { background: rgba(255,255,255,.2); }
+  .mc-divider     { height: 1px; background: rgba(255,255,255,.07);
+                    margin: .6rem 0; }
+  .mc-sub-row     { padding-left: 6.8rem; }
+</style>
+
+<div class="mc-tabs-wrap">
+
+  {# ── Department tabs ────────────────────────────────────────────── #}
+  <div class="mc-tabs-row">
+    <span class="mc-tabs-label">{% trans "Department" %}</span>
+
+    <a href="{{ all_dept_url }}" class="mc-tab {% if not active_dept %}active{% endif %}">
+      {% trans "All" %}
+    </a>
+
+    {% for item in tab_depts %}
+      <a href="{{ item.url }}" class="mc-tab {% if item.active %}active{% endif %}">
+        {{ item.obj.short_name|default:item.obj.name }}
+        {% if item.active %}<span class="mc-badge">✓</span>{% endif %}
+      </a>
+    {% endfor %}
+  </div>
+
+  {# ── Year Level tabs (visible only when a dept is selected) ───── #}
+  {% if active_dept and tab_years %}
+    <div class="mc-divider"></div>
+    <div class="mc-tabs-row mc-sub-row">
+      <span class="mc-tabs-label" style="min-width:0; margin-right:.5rem;">{% trans "Year Level" %}</span>
+
+      <a href="{{ all_yr_url }}" class="mc-tab {% if not active_yr %}active{% endif %}">
+        {% trans "All Years" %}
+      </a>
+
+      {% for item in tab_years %}
+        <a href="{{ item.url }}" class="mc-tab {% if item.active %}active{% endif %}">
+          {{ item.obj.name }}
+          {% if item.active %}<span class="mc-badge">✓</span>{% endif %}
+        </a>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {# ── Block tabs (visible only when a year level is selected) ─── #}
+  {% if active_yr and tab_blocks %}
+    <div class="mc-tabs-row mc-sub-row" style="padding-left: 9rem;">
+      <span class="mc-tabs-label" style="min-width:0; margin-right:.5rem;">{% trans "Block" %}</span>
+
+      <a href="{{ all_blk_url }}" class="mc-tab {% if not active_blk %}active{% endif %}">
+        {% trans "All Blocks" %}
+      </a>
+
+      {% for item in tab_blocks %}
+        <a href="{{ item.url }}" class="mc-tab {% if item.active %}active{% endif %}">
+          {{ item.obj.name }}
+          {% if item.active %}<span class="mc-badge">✓</span>{% endif %}
+        </a>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="mc-divider"></div>
+
+  {# ── Active breadcrumb summary ─────────────────────────────────── #}
+  <div style="font-size:.75rem; color:rgba(255,255,255,.4); padding-left: .25rem;">
+    {% if active_dept %}
+      <span style="color:rgba(255,255,255,.7)">{{ active_dept.name }}</span>
+      {% if active_yr %}
+        <span> › </span>
+        <span style="color:rgba(255,255,255,.7)">{{ active_yr.name }}</span>
+      {% endif %}
+      {% if active_blk %}
+        <span> › </span>
+        <span style="color:rgba(255,255,255,.7)">{{ active_blk.name }}</span>
+      {% endif %}
+    {% else %}
+      {% trans "Showing all departments" %}
+    {% endif %}
+  </div>
+
+</div>

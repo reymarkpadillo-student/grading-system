@@ -1,0 +1,165 @@
+{% load i18n %}
+
+{% comment %}
+  Attendance drill-down nav.
+  Levels: Dept → Year → Block → Course → records
+  Context: tab_depts, tab_years, tab_blocks, att_courses,
+           active_dept, active_yr, active_blk, active_sched
+           all_dept_url, all_yr_url, all_blk_url, all_sched_url
+{% endcomment %}
+
+<style>
+  /* ── shared tab row ─────────────────────────────── */
+  .att-wrap      { margin-bottom: 1.25rem; }
+  .att-row       { display:flex; flex-wrap:wrap; align-items:center;
+                   gap:.35rem; margin-bottom:.4rem; }
+  .att-label     { font-size:.62rem; font-weight:700; letter-spacing:.07em;
+                   text-transform:uppercase; color:rgba(255,255,255,.28);
+                   min-width:5.5rem; flex-shrink:0; }
+  .att-tab       { display:inline-flex; align-items:center; gap:.3rem;
+                   padding:.28rem .8rem; border-radius:9999px;
+                   font-size:.77rem; font-weight:600; text-decoration:none;
+                   border:1px solid rgba(255,255,255,.09);
+                   color:rgba(255,255,255,.52);
+                   background:rgba(255,255,255,.04);
+                   transition:background .15s, color .15s, border-color .15s; }
+  .att-tab:hover { background:rgba(255,255,255,.1); color:#fff;
+                   border-color:rgba(255,255,255,.2); }
+  .att-tab.active{ background:rgb(2,132,199); color:#fff;
+                   border-color:transparent;
+                   box-shadow:0 0 0 3px rgba(2,132,199,.2); }
+  .att-ck        { font-size:.62rem; opacity:.7; }
+
+  /* ── course cards ──────────────────────────────── */
+  .att-courses-title { font-size:.62rem; font-weight:700; letter-spacing:.07em;
+                       text-transform:uppercase; color:rgba(255,255,255,.28);
+                       margin:1rem 0 .55rem; }
+  .att-course-grid   { display:grid;
+                       grid-template-columns:repeat(auto-fill, minmax(210px, 1fr));
+                       gap:.55rem; margin-bottom:.75rem; }
+  .att-course-card   { display:flex; flex-direction:column; gap:.3rem;
+                       padding:.7rem 1rem; border-radius:.55rem;
+                       border:1px solid rgba(255,255,255,.08);
+                       background:rgba(255,255,255,.04);
+                       text-decoration:none;
+                       transition:background .15s, border-color .15s, transform .1s; }
+  .att-course-card:hover { background:rgba(2,132,199,.1);
+                            border-color:rgba(2,132,199,.35);
+                            transform:translateY(-1px); }
+  .att-course-card.active-card { background:rgba(2,132,199,.18);
+                                  border-color:rgb(2,132,199); }
+  .att-course-name   { font-size:.82rem; font-weight:700; color:#e2e8f0; }
+  .att-course-stats  { display:flex; gap:.4rem; flex-wrap:wrap; margin-top:.15rem; }
+  .att-stat          { font-size:.65rem; padding:.08rem .4rem;
+                       border-radius:9999px; font-weight:600; }
+  .att-stat.p        { background:rgba(34,197,94,.15); color:rgb(134,239,172); }
+  .att-stat.a        { background:rgba(239,68,68,.15);  color:rgb(252,165,165); }
+  .att-stat.l        { background:rgba(234,179,8,.15);  color:rgb(253,224,71);  }
+  .att-stat.e        { background:rgba(168,85,247,.15); color:rgb(216,180,254); }
+
+  /* ── divider & prompt ──────────────────────────── */
+  .att-div     { height:1px; background:rgba(255,255,255,.06); margin:.6rem 0; }
+  .att-crumb   { font-size:.72rem; color:rgba(255,255,255,.35); margin-top:.3rem; }
+  .att-crumb span { color:rgba(255,255,255,.7); }
+  .att-prompt  { padding:1.25rem; border:1px dashed rgba(255,255,255,.12);
+                 border-radius:.6rem; text-align:center;
+                 color:rgba(255,255,255,.35); font-size:.82rem; margin:.5rem 0; }
+  .att-prompt strong { color:rgba(2,132,199,.8); }
+</style>
+
+<div class="att-wrap">
+
+  {# ── Step 1: Department ──────────────────────────────────── #}
+  <div class="att-row">
+    <span class="att-label">{% trans "Department" %}</span>
+    <a href="{{ all_dept_url }}" class="att-tab {% if not active_dept %}active{% endif %}">{% trans "All" %}</a>
+    {% for item in tab_depts %}
+      <a href="{{ item.url }}" class="att-tab {% if item.active %}active{% endif %}" title="{{ item.obj.name }}">
+        {{ item.obj.short_name|default:item.obj.name }}
+        {% if item.active %}<span class="att-ck">✓</span>{% endif %}
+      </a>
+    {% endfor %}
+  </div>
+
+  {# ── Step 2: Year Level ──────────────────────────────────── #}
+  {% if active_dept and tab_years %}
+    <div class="att-row" style="padding-left:5.8rem;">
+      <span class="att-label" style="min-width:0;margin-right:.4rem;">{% trans "Year" %}</span>
+      <a href="{{ all_yr_url }}" class="att-tab {% if not active_yr %}active{% endif %}">{% trans "All Years" %}</a>
+      {% for item in tab_years %}
+        <a href="{{ item.url }}" class="att-tab {% if item.active %}active{% endif %}">
+          {{ item.obj.name }}{% if item.active %}<span class="att-ck">✓</span>{% endif %}
+        </a>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {# ── Step 3: Block ───────────────────────────────────────── #}
+  {% if active_yr and tab_blocks %}
+    <div class="att-row" style="padding-left:6.5rem;">
+      <span class="att-label" style="min-width:0;margin-right:.4rem;">{% trans "Block" %}</span>
+      <a href="{{ all_blk_url }}" class="att-tab {% if not active_blk %}active{% endif %}">{% trans "All Blocks" %}</a>
+      {% for item in tab_blocks %}
+        <a href="{{ item.url }}" class="att-tab {% if item.active %}active{% endif %}">
+          {{ item.obj.name }}{% if item.active %}<span class="att-ck">✓</span>{% endif %}
+        </a>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="att-div"></div>
+
+  {# ── Step 4: Course cards (shown after block selected) ────── #}
+  {% if active_blk and att_courses %}
+    <div class="att-courses-title">
+      {% if active_sched %}
+        {% trans "Course" %} — <a href="{{ all_sched_url }}" style="color:rgba(2,132,199,.8); font-weight:400;">{% trans "← change course" %}</a>
+      {% else %}
+        {% trans "Select a course below to view its attendance records" %}
+      {% endif %}
+    </div>
+    <div class="att-course-grid">
+      {% for c in att_courses %}
+        <a href="{{ c.url }}" class="att-course-card {% if c.active %}active-card{% endif %}">
+          <span class="att-course-name">{{ c.subject }}</span>
+          <div class="att-course-stats">
+            <span class="att-stat p">✓ {{ c.present }}</span>
+            <span class="att-stat a">✗ {{ c.absent }}</span>
+            <span class="att-stat l">⏱ {{ c.late }}</span>
+            {% if c.excuse %}<span class="att-stat e">E {{ c.excuse }}</span>{% endif %}
+          </div>
+        </a>
+      {% endfor %}
+    </div>
+
+  {% elif active_blk %}
+    <div class="att-prompt">No courses found for <strong>{{ active_blk.name }}</strong>.</div>
+
+  {% elif active_yr %}
+    <div class="att-prompt">
+      <strong>Step 3 —</strong> Select a <strong>Block</strong> above to see its courses.
+    </div>
+
+  {% elif active_dept %}
+    <div class="att-prompt">
+      <strong>Step 2 —</strong> Select a <strong>Year Level</strong> above (e.g. 1st Year, 2nd Year…)
+    </div>
+
+  {% else %}
+    <div class="att-prompt">
+      <strong>Step 1 —</strong> Select a <strong>Department</strong> above to begin browsing attendance.
+    </div>
+  {% endif %}
+
+
+  {# ── Breadcrumb ──────────────────────────────────────────── #}
+  <div class="att-crumb">
+    {% if active_dept %}
+      <span>{{ active_dept.short_name }}</span>
+      {% if active_yr %} › <span>{{ active_yr.name }}</span>{% endif %}
+      {% if active_blk %} › <span>{{ active_blk.name }}</span>{% endif %}
+      {% if active_sched %} › <span>{{ active_sched.subject.name }}</span>{% endif %}
+    {% endif %}
+  </div>
+
+</div>

@@ -1,0 +1,39 @@
+{% load i18n %}
+
+{% comment %}
+  Department navigation — compact pill row above the department list.
+  Context: dept_nav_items (list of {obj, yr_count, blk_count, url})
+{% endcomment %}
+
+<style>
+  .dn-wrap   { margin-bottom: 1.25rem; }
+  .dn-label  { font-size: .63rem; font-weight: 700; letter-spacing: .08em;
+               text-transform: uppercase; color: rgba(255,255,255,.3);
+               margin-bottom: .5rem; }
+  .dn-row    { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .dn-pill   { display: inline-flex; align-items: center; gap: .5rem;
+               padding: .3rem .75rem;
+               border-radius: 9999px;
+               border: 1px solid rgba(255,255,255,.1);
+               background: rgba(255,255,255,.04);
+               text-decoration: none;
+               transition: background .15s, border-color .15s; }
+  .dn-pill:hover { background: rgba(2,132,199,.15);
+                   border-color: rgba(2,132,199,.45); }
+  .dn-short  { font-size: .8rem; font-weight: 700; color: rgb(2,132,199); }
+  .dn-counts { font-size: .68rem; color: rgba(255,255,255,.38); }
+  .dn-div    { height: 1px; background: rgba(255,255,255,.06); margin: .75rem 0; }
+</style>
+
+<div class="dn-wrap">
+  <div class="dn-label">{% trans "Navigate to Year Levels" %}</div>
+  <div class="dn-row">
+    {% for item in dept_nav_items %}
+      <a href="{{ item.url }}" class="dn-pill">
+        <span class="dn-short">{{ item.obj.short_name|default:item.obj.name }}</span>
+        <span class="dn-counts">{{ item.yr_count }}yr · {{ item.blk_count }}blk</span>
+      </a>
+    {% endfor %}
+  </div>
+  <div class="dn-div"></div>
+</div>

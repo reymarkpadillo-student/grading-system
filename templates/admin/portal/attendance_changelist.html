@@ -1,0 +1,107 @@
+{% extends "admin/change_list.html" %}
+{% load i18n admin_urls static admin_list %}
+
+{% block result_list %}
+  {# Include our custom drill-down nav BEFORE the results #}
+  {% include "admin/portal/attendance_nav.html" %}
+
+  {% if active_sched %}
+    {% if matrix_students %}
+      <form method="post" action="">
+        {% csrf_token %}
+        <div class="results">
+          <style>
+            .att-matrix-table {
+              width: 100%; border-collapse: collapse;
+              font-size: 0.8125rem; text-align: center;
+            }
+            .att-matrix-table th {
+              padding: 8px 10px; border: 1px solid var(--border-color);
+              background: var(--darkened-bg); color: var(--body-fg);
+              font-weight: 600; white-space: nowrap;
+            }
+            .att-matrix-table td {
+              padding: 4px; border: 1px solid var(--border-color);
+              white-space: nowrap;
+            }
+            .att-matrix-table .st-name {
+              text-align: left; font-weight: 600; padding: 8px;
+              position: sticky; left: 0; background: var(--body-bg);
+              z-index: 10;
+            }
+            .att-select {
+              width: 3rem; text-align: center; font-weight: 700;
+              border-radius: 4px; padding: 2px;
+              appearance: none; border: 1px solid rgba(255,255,255,0.1);
+              cursor: pointer;
+            }
+            .mark-Present { background: rgba(34,197,94,.15); color: rgb(134,239,172); }
+            .mark-Absent  { background: rgba(239,68,68,.15);  color: rgb(252,165,165); }
+            .mark-Late    { background: rgba(234,179,8,.15);  color: rgb(253,224,71);  }
+            .mark-Excuse  { background: rgba(168,85,247,.15); color: rgb(216,180,254); }
+            .mark-None    { background: rgba(255,255,255,.05); color: rgba(255,255,255,.3); }
+            
+            .att-matrix-wrap { overflow-x: auto; max-width: 100%; margin-top: 1rem; }
+            .att-save-bar {
+              margin-top: 1rem; padding: 1rem; background: var(--darkened-bg);
+              border: 1px solid var(--border-color); border-radius: 4px;
+              display: flex; justify-content: flex-end;
+              position: sticky; bottom: 0; z-index: 20;
+            }
+          </style>
+          
+          <div class="att-matrix-wrap">
+            <table class="att-matrix-table">
+              <thead>
+                <tr>
+                  <th class="st-name">{% trans "Student" %}</th>
+                  {% for dt in matrix_dates %}
+                    <th>{{ dt|date:"M j" }}</th>
+                  {% endfor %}
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in matrix_students %}
+                  <tr>
+                    <td class="st-name">
+                      {{ row.student_name }}
+                      <div style="font-family:monospace; font-size:0.7rem; color:var(--body-quiet-color);">
+                        {{ row.student_id }}
+                      </div>
+                    </td>
+                    {% for status_obj in row.statuses %}
+                      <td>
+                        <select name="att_{{ row.record_id }}_{{ status_obj.date_str }}" 
+                                class="att-select mark-{{ status_obj.status }}"
+                                onchange="this.className = 'att-select mark-' + this.value">
+                          <option value="Present" {% if status_obj.status == 'Present' %}selected{% endif %}>✓</option>
+                          <option value="Absent" {% if status_obj.status == 'Absent' %}selected{% endif %}>✗</option>
+                          <option value="Late" {% if status_obj.status == 'Late' %}selected{% endif %}>⏱</option>
+                          <option value="Excuse" {% if status_obj.status == 'Excuse' %}selected{% endif %}>E</option>
+                          <option value="None" {% if status_obj.status == 'None' %}selected{% endif %}>—</option>
+                        </select>
+                      </td>
+                    {% endfor %}
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          
+          <div class="att-save-bar">
+            <button type="submit" class="button" style="background: rgb(2,132,199); color: white; border: none; font-weight: bold; padding: 10px 20px; border-radius: 4px; cursor: pointer;">
+              Save Attendance
+            </button>
+          </div>
+        </div>
+      </form>
+    {% else %}
+      <p class="paginator" style="text-align:center; padding:20px;">
+        No students found for this course.
+      </p>
+    {% endif %}
+
+  {% else %}
+    {# If no schedule is selected, do not show the Django list of records #}
+  {% endif %}
+{% endblock %}
