@@ -3,35 +3,22 @@ from django.contrib.auth.models import User
 
 # ─── Organizational Models ────────────────────────────────────────────────────
 
-class Department(models.Model):
-    name = models.CharField(max_length=150)
-    short_name = models.CharField(max_length=20, blank=True)
-
-    class Meta:
-        ordering = ['name']
-
-    def __str__(self):
-        return self.name
-
-
 class YearLevel(models.Model):
-    department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name='year_levels')
     name = models.CharField(max_length=30)
     order = models.IntegerField(default=1)
 
     class Meta:
-        ordering = ['department', 'order']
-        unique_together = ('department', 'name')
+        ordering = ['order']
 
     def __str__(self):
-        return f"{self.department.short_name or self.department.name} — {self.name}"
-
+        return f"{self.name}"
 
 # ─── User / Profile ───────────────────────────────────────────────────────────
 
 class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     is_teacher = models.BooleanField(default=False)
+    position = models.CharField(max_length=100, blank=True, default='')
 
     def __str__(self):
         return f"{self.user.username} Profile"
@@ -81,12 +68,11 @@ class Section(models.Model):
     )
 
     class Meta:
-        ordering = ['year_level__department__name', 'year_level__order', 'name']
+        ordering = ['year_level__order', 'name']
 
     def __str__(self):
         if self.year_level:
-            dept = self.year_level.department.short_name or self.year_level.department.name
-            return f"{dept} {self.year_level.name} — {self.name}"
+            return f"{self.year_level.name} — {self.name}"
         return self.name
 
 class Period(models.Model):
@@ -196,6 +182,7 @@ class Assessment(models.Model):
 
 class AssessmentScore(models.Model):
     assessment = models.ForeignKey(Assessment, on_delete=models.CASCADE)
+    schedule = models.ForeignKey(Schedule, on_delete=models.CASCADE, null=True, blank=True)
     score = models.DecimalField(max_digits=6, decimal_places=2)
 
     def __str__(self):

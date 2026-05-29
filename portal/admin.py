@@ -5,10 +5,12 @@ from django.contrib.auth.forms import UserChangeForm
 from django import forms
 from django.utils.safestring import mark_safe
 from django.contrib.admin import SimpleListFilter
+from django.http import HttpResponseRedirect
 from unfold.admin import ModelAdmin, TabularInline, StackedInline
+from .admin_permissions import PortalRolePermissionMixin
 
 from .models import (
-    Department, YearLevel,
+    YearLevel,
     UserProfile, Semester, SchoolYear, SchoolYearSemester, Subject, Section,
     Period, Schedule, Record, GradePeriod, GradePart, Attendance, GradingTemplate,
     GradingTemplateItem, AssessmentTypeWeight, Assessment, AssessmentScore
@@ -16,9 +18,9 @@ from .models import (
 
 # ─── Site Branding ────────────────────────────────────────────────────────────
 
-admin.site.site_header = "MC Portal Administration"
-admin.site.site_title  = "MC Portal"
-admin.site.index_title = "MC Portal Dashboard"
+admin.site.site_header = "CSS Department Portal Administration"
+admin.site.site_title  = "CSS Department Portal"
+admin.site.index_title = "CSS Department Dashboard"
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -38,33 +40,20 @@ def _tab_url(request, **overrides):
     return f'?{qs}' if qs else '?'
 
 
-def make_tab_filters(dept_field, yr_field=None, blk_field=None):
+def make_tab_filters(yr_field=None, blk_field=None):
     """
-    Factory: returns (DeptFilter, YrFilter, BlkFilter) SimpleListFilter classes
-    for the given ORM lookup paths.  All three must be in list_filter so Django
-    admin consumes 'dept', 'yr', 'blk' URL params before trying to apply them
+    Factory: returns (YrFilter, BlkFilter) SimpleListFilter classes
+    for the given ORM lookup paths.  Both must be in list_filter so Django
+    admin consumes 'yr', 'blk' URL params before trying to apply them
     as raw ORM filters (which would crash).
     """
-
-    class DeptTabFilter(SimpleListFilter):
-        title          = 'department'
-        parameter_name = 'dept'
-
-        def lookups(self, request, model_admin):
-            return [(d.pk, d.short_name or d.name) for d in Department.objects.all()]
-
-        def queryset(self, request, queryset):
-            if self.value():
-                return queryset.filter(**{dept_field: self.value()})
 
     class YrTabFilter(SimpleListFilter):
         title          = 'year level'
         parameter_name = 'yr'
 
         def lookups(self, request, model_admin):
-            qs = YearLevel.objects.select_related('department')
-            if request.GET.get('dept'):
-                qs = qs.filter(department_id=request.GET['dept'])
+            qs = YearLevel.objects.all()
             return [(y.pk, y.name) for y in qs]
 
         def queryset(self, request, queryset):
@@ -79,15 +68,13 @@ def make_tab_filters(dept_field, yr_field=None, blk_field=None):
             qs = Section.objects.all()
             if request.GET.get('yr'):
                 qs = qs.filter(year_level_id=request.GET['yr'])
-            elif request.GET.get('dept'):
-                qs = qs.filter(year_level__department_id=request.GET['dept'])
             return [(s.pk, s.name) for s in qs]
 
         def queryset(self, request, queryset):
             if self.value() and blk_field:
                 return queryset.filter(**{blk_field: self.value()})
 
-    return DeptTabFilter, YrTabFilter, BlkTabFilter
+    return YrTabFilter, BlkTabFilter
 
 
 class TabNavMixin:
@@ -100,34 +87,21 @@ class TabNavMixin:
     def changelist_view(self, request, extra_context=None):
         extra_context = extra_context or {}
 
-        dept_id = request.GET.get('dept')
         yr_id   = request.GET.get('yr')
         blk_id  = request.GET.get('blk')
 
-        active_dept = Department.objects.filter(pk=dept_id).first() if dept_id else None
         active_yr   = YearLevel.objects.filter(pk=yr_id).first()    if yr_id   else None
         active_blk  = Section.objects.filter(pk=blk_id).first()     if blk_id  else None
 
-        # Department row — always shown
-        tab_depts = [
-            {
-                'obj':    d,
-                'url':    _tab_url(request, dept=d.pk, yr=None, blk=None),
-                'active': str(d.pk) == str(dept_id),
-            }
-            for d in Department.objects.all()
-        ]
-
-        # Year Level row — shown when a dept is active
+        # Year Level row — always shown
         tab_years   = []
         all_yr_url  = _tab_url(request, yr=None, blk=None)
-        if active_dept:
-            for yl in YearLevel.objects.filter(department=active_dept).order_by('order'):
-                tab_years.append({
-                    'obj':    yl,
-                    'url':    _tab_url(request, yr=yl.pk, blk=None),
-                    'active': str(yl.pk) == str(yr_id),
-                })
+        for yl in YearLevel.objects.all().order_by('order'):
+            tab_years.append({
+                'obj':    yl,
+                'url':    _tab_url(request, yr=yl.pk, blk=None),
+                'active': str(yl.pk) == str(yr_id),
+            })
 
         # Block row — shown when a year level is active
         tab_blocks  = []
@@ -141,13 +115,10 @@ class TabNavMixin:
                 })
 
         extra_context.update({
-            'tab_depts':    tab_depts,
             'tab_years':    tab_years,
             'tab_blocks':   tab_blocks,
-            'active_dept':  active_dept,
             'active_yr':    active_yr,
             'active_blk':   active_blk,
-            'all_dept_url': _tab_url(request, dept=None, yr=None, blk=None),
             'all_yr_url':   all_yr_url,
             'all_blk_url':  all_blk_url,
         })
@@ -195,7 +166,7 @@ class UserProfileInline(StackedInline):
     fk_name           = 'user'
 
 
-class CustomUserAdmin(UserAdmin, ModelAdmin):
+class CustomUserAdmin(PortalRolePermissionMixin, UserAdmin, ModelAdmin):
     form             = CustomUserChangeForm
     filter_horizontal = ()
     list_filter      = ('is_active', RoleFilter)
@@ -216,54 +187,14 @@ admin.site.register(User, CustomUserAdmin)
 #  ACADEMICS — Department → Year Level → Block
 # ══════════════════════════════════════════════════════════════════════════════
 
-# ─── Department ───────────────────────────────────────────────────────────────
-
-class YearLevelInline(TabularInline):
-    model   = YearLevel
-    extra   = 1
-    fields  = ('name', 'order')
-    ordering = ('order',)
-
-
-@admin.register(Department)
-class DepartmentAdmin(ModelAdmin):
-    list_display         = ('name', 'short_name', 'year_level_count', 'block_count_total')
-    search_fields        = ('name', 'short_name')
-    inlines              = [YearLevelInline]
-    list_before_template = 'admin/portal/dept_nav.html'
-
-    def changelist_view(self, request, extra_context=None):
-        extra_context = extra_context or {}
-        from .models import Section
-        items = []
-        for d in Department.objects.prefetch_related('year_levels__blocks').all():
-            yr_count  = d.year_levels.count()
-            blk_count = Section.objects.filter(year_level__department=d).count()
-            items.append({
-                'obj':       d,
-                'yr_count':  yr_count,
-                'blk_count': blk_count,
-                'url':       f'/admin/portal/yearlevel/?dept={d.pk}',
-            })
-        extra_context['dept_nav_items'] = items
-        return super().changelist_view(request, extra_context=extra_context)
-
-    def year_level_count(self, obj):
-        return obj.year_levels.count()
-    year_level_count.short_description = 'Year Levels'
-
-    def block_count_total(self, obj):
-        from .models import Section
-        return Section.objects.filter(year_level__department=obj).count()
-    block_count_total.short_description = 'Total Blocks'
+# ─── Department (REMOVED) ───────────────────────────────────────────────────
 
 
 
 # ─── Year Level ───────────────────────────────────────────────────────────────
 
-# Filters: only dept param needed (YearLevel IS the yr entity)
-_yl_Dept, _yl_Yr, _yl_Blk = make_tab_filters(
-    dept_field='department_id',
+# Filters: only yr param needed (YearLevel IS the yr entity)
+_yl_Yr, _yl_Blk = make_tab_filters(
     yr_field=None,
     blk_field=None,
 )
@@ -278,12 +209,12 @@ class SectionInline(TabularInline):
 
 
 @admin.register(YearLevel)
-class YearLevelAdmin(TabNavMixin, ModelAdmin):
-    list_display  = ('__str__', 'department', 'name', 'order', 'block_count', 'view_blocks_link')
-    list_filter   = (_yl_Dept, _yl_Yr, _yl_Blk, 'name')
-    search_fields = ('department__name', 'name')
+class YearLevelAdmin(PortalRolePermissionMixin, TabNavMixin, ModelAdmin):
+    list_display  = ('__str__', 'name', 'order', 'block_count', 'view_blocks_link')
+    list_filter   = (_yl_Yr, _yl_Blk, 'name')
+    search_fields = ('name',)
     inlines       = [SectionInline]
-    autocomplete_fields = ['department']
+    autocomplete_fields = []
 
     def block_count(self, obj):
         return obj.blocks.count()
@@ -300,26 +231,20 @@ class YearLevelAdmin(TabNavMixin, ModelAdmin):
 
 # ─── Section / Block ──────────────────────────────────────────────────────────
 
-_sec_Dept, _sec_Yr, _sec_Blk = make_tab_filters(
-    dept_field='year_level__department_id',
+_sec_Yr, _sec_Blk = make_tab_filters(
     yr_field='year_level_id',
     blk_field=None,   # Section itself IS the block
 )
 
 
 @admin.register(Section)
-class SectionAdmin(TabNavMixin, ModelAdmin):
-    list_display  = ('name', 'get_department', 'get_year_level', 'view_schedules_link')
-    search_fields = ('name', 'year_level__department__name')
-    list_filter   = (_sec_Dept, _sec_Yr, _sec_Blk)
+class SectionAdmin(PortalRolePermissionMixin, TabNavMixin, ModelAdmin):
+    list_display  = ('name', 'get_year_level', 'view_schedules_link')
+    search_fields = ('name',)
+    list_filter   = (_sec_Yr, _sec_Blk)
     autocomplete_fields = ['year_level']
     verbose_name        = 'Block'
     verbose_name_plural = 'Blocks'
-
-    def get_department(self, obj):
-        return obj.year_level.department if obj.year_level else '—'
-    get_department.short_description = 'Department'
-    get_department.admin_order_field = 'year_level__department__name'
 
     def get_year_level(self, obj):
         return obj.year_level.name if obj.year_level else '—'
@@ -338,13 +263,13 @@ class SectionAdmin(TabNavMixin, ModelAdmin):
 # ─── Subjects & Periods (no tabs needed) ──────────────────────────────────────
 
 @admin.register(Subject)
-class SubjectAdmin(ModelAdmin):
+class SubjectAdmin(PortalRolePermissionMixin, ModelAdmin):
     list_display  = ('name', 'user')
     search_fields = ('name',)
 
 
 @admin.register(Period)
-class PeriodAdmin(ModelAdmin):
+class PeriodAdmin(PortalRolePermissionMixin, ModelAdmin):
     list_display  = ('name', 'position', 'is_active', 'user')
     search_fields = ('name',)
     list_filter   = ('is_active',)
@@ -354,8 +279,7 @@ class PeriodAdmin(ModelAdmin):
 #  SCHEDULE
 # ══════════════════════════════════════════════════════════════════════════════
 
-_sch_Dept, _sch_Yr, _sch_Blk = make_tab_filters(
-    dept_field='section__year_level__department_id',
+_sch_Yr, _sch_Blk = make_tab_filters(
     yr_field='section__year_level_id',
     blk_field='section_id',
 )
@@ -382,19 +306,12 @@ class AssessmentTypeWeightInline(TabularInline):
 
 
 @admin.register(Schedule)
-class ScheduleAdmin(TabNavMixin, ModelAdmin):
-    list_display  = ('subject', 'get_department', 'get_year_level', 'section', 'school_year_semester')
-    search_fields = ('subject__name', 'section__name', 'section__year_level__department__name')
-    list_filter   = (_sch_Dept, _sch_Yr, _sch_Blk, 'school_year_semester')
+class ScheduleAdmin(PortalRolePermissionMixin, TabNavMixin, ModelAdmin):
+    list_display  = ('subject', 'get_year_level', 'section', 'school_year_semester')
+    search_fields = ('subject__name', 'section__name')
+    list_filter   = (_sch_Yr, _sch_Blk, 'school_year_semester')
     inlines       = [RecordInline, GradePartInline, AssessmentTypeWeightInline]
     autocomplete_fields = ['subject', 'school_year_semester', 'section']
-
-    def get_department(self, obj):
-        if obj.section and obj.section.year_level:
-            return obj.section.year_level.department
-        return '—'
-    get_department.short_description = 'Department'
-    get_department.admin_order_field = 'section__year_level__department__name'
 
     def get_year_level(self, obj):
         if obj.section and obj.section.year_level:
@@ -408,8 +325,7 @@ class ScheduleAdmin(TabNavMixin, ModelAdmin):
 #  RECORDS & GRADES
 # ══════════════════════════════════════════════════════════════════════════════
 
-_rec_Dept, _rec_Yr, _rec_Blk = make_tab_filters(
-    dept_field='schedule__section__year_level__department_id',
+_rec_Yr, _rec_Blk = make_tab_filters(
     yr_field='schedule__section__year_level_id',
     blk_field='schedule__section_id',
 )
@@ -423,21 +339,15 @@ class GradePeriodInline(TabularInline):
 
 
 @admin.register(Record)
-class RecordAdmin(TabNavMixin, ModelAdmin):
-    list_display  = ('student', 'get_department', 'get_year_level', 'get_block', 'get_subject', 'average')
+class RecordAdmin(PortalRolePermissionMixin, TabNavMixin, ModelAdmin):
+    list_display  = ('student', 'get_year_level', 'get_block', 'get_subject', 'average')
     search_fields = (
         'student__username', 'student__first_name', 'student__last_name',
         'schedule__subject__name', 'schedule__section__name',
-        'schedule__section__year_level__department__name',
     )
-    list_filter   = (_rec_Dept, _rec_Yr, _rec_Blk, 'schedule__school_year_semester')
+    list_filter   = (_rec_Yr, _rec_Blk, 'schedule__school_year_semester')
     inlines       = [GradePeriodInline]
     autocomplete_fields = ['student', 'schedule']
-
-    def get_department(self, obj):
-        sec = obj.schedule.section
-        return sec.year_level.department if sec and sec.year_level else '—'
-    get_department.short_description = 'Department'
 
     def get_year_level(self, obj):
         sec = obj.schedule.section
@@ -457,8 +367,7 @@ class RecordAdmin(TabNavMixin, ModelAdmin):
 #  GRADE PERIOD
 # ══════════════════════════════════════════════════════════════════════════════
 
-_gp_Dept, _gp_Yr, _gp_Blk = make_tab_filters(
-    dept_field='record__schedule__section__year_level__department_id',
+_gp_Yr, _gp_Blk = make_tab_filters(
     yr_field='record__schedule__section__year_level_id',
     blk_field='record__schedule__section_id',
 )
@@ -472,11 +381,10 @@ class AssessmentInline(TabularInline):
 
 
 @admin.register(GradePeriod)
-class GradePeriodAdmin(TabNavMixin, ModelAdmin):
-    list_display  = ('get_student', 'get_department', 'get_year_level', 'get_block', 'get_subject', 'period', 'grade')
-    list_filter   = (_gp_Dept, _gp_Yr, _gp_Blk, 'period')
-    search_fields = ('record__student__username', 'record__schedule__subject__name',
-                     'record__schedule__section__year_level__department__name')
+class GradePeriodAdmin(PortalRolePermissionMixin, TabNavMixin, ModelAdmin):
+    list_display  = ('get_student', 'get_year_level', 'get_block', 'get_subject', 'period', 'grade')
+    list_filter   = (_gp_Yr, _gp_Blk, 'period')
+    search_fields = ('record__student__username', 'record__schedule__subject__name')
     inlines       = [AssessmentInline]
     autocomplete_fields = ['record', 'period']
 
@@ -484,11 +392,6 @@ class GradePeriodAdmin(TabNavMixin, ModelAdmin):
         u = obj.record.student
         return u.get_full_name() or u.username
     get_student.short_description = 'Student'
-
-    def get_department(self, obj):
-        sec = obj.record.schedule.section
-        return sec.year_level.department if sec and sec.year_level else '—'
-    get_department.short_description = 'Department'
 
     def get_year_level(self, obj):
         sec = obj.record.schedule.section
@@ -509,8 +412,7 @@ class GradePeriodAdmin(TabNavMixin, ModelAdmin):
 #  ASSESSMENT
 # ══════════════════════════════════════════════════════════════════════════════
 
-_asmnt_Dept, _asmnt_Yr, _asmnt_Blk = make_tab_filters(
-    dept_field='grade_period__record__schedule__section__year_level__department_id',
+_asmnt_Yr, _asmnt_Blk = make_tab_filters(
     yr_field='grade_period__record__schedule__section__year_level_id',
     blk_field='grade_period__record__schedule__section_id',
 )
@@ -522,18 +424,12 @@ class AssessmentScoreInline(TabularInline):
 
 
 @admin.register(Assessment)
-class AssessmentAdmin(TabNavMixin, ModelAdmin):
-    list_display  = ('title', 'get_department', 'get_year_level', 'get_block', 'max_score', 'date_given', 'is_active')
-    list_filter   = (_asmnt_Dept, _asmnt_Yr, _asmnt_Blk, 'date_given', 'is_active')
-    search_fields = ('title', 'grade_period__record__student__username',
-                     'grade_period__record__schedule__section__year_level__department__name')
+class AssessmentAdmin(PortalRolePermissionMixin, TabNavMixin, ModelAdmin):
+    list_display  = ('title', 'get_year_level', 'get_block', 'max_score', 'date_given', 'is_active')
+    list_filter   = (_asmnt_Yr, _asmnt_Blk, 'date_given', 'is_active')
+    search_fields = ('title', 'grade_period__record__student__username')
     inlines       = [AssessmentScoreInline]
     autocomplete_fields = ['grade_period']
-
-    def get_department(self, obj):
-        sec = obj.grade_period.record.schedule.section
-        return sec.year_level.department if sec and sec.year_level else '—'
-    get_department.short_description = 'Department'
 
     def get_year_level(self, obj):
         sec = obj.grade_period.record.schedule.section
@@ -547,14 +443,14 @@ class AssessmentAdmin(TabNavMixin, ModelAdmin):
 
 
 @admin.register(AssessmentScore)
-class AssessmentScoreAdmin(ModelAdmin):
-    list_display  = ('assessment', 'score')
+class AssessmentScoreAdmin(PortalRolePermissionMixin, ModelAdmin):
+    list_display  = ('assessment', 'schedule', 'score')
     search_fields = ('assessment__title',)
     autocomplete_fields = ['assessment']
 
 
 @admin.register(AssessmentTypeWeight)
-class AssessmentTypeWeightAdmin(ModelAdmin):
+class AssessmentTypeWeightAdmin(PortalRolePermissionMixin, ModelAdmin):
     list_display  = ('schedule', 'period', 'type', 'weight')
     list_filter   = ('period', 'type')
     autocomplete_fields = ['schedule', 'period']
@@ -564,8 +460,7 @@ class AssessmentTypeWeightAdmin(ModelAdmin):
 #  ATTENDANCE
 # ══════════════════════════════════════════════════════════════════════════════
 
-_att_Dept, _att_Yr, _att_Blk = make_tab_filters(
-    dept_field='record__schedule__section__year_level__department_id',
+_att_Yr, _att_Blk = make_tab_filters(
     yr_field='record__schedule__section__year_level_id',
     blk_field='record__schedule__section_id',
 )
@@ -580,13 +475,10 @@ class AttendanceSchedFilter(SimpleListFilter):
         qs = Schedule.objects.select_related('subject', 'section')
         blk  = request.GET.get('blk')
         yr   = request.GET.get('yr')
-        dept = request.GET.get('dept')
         if blk:
             qs = qs.filter(section_id=blk)
         elif yr:
             qs = qs.filter(section__year_level_id=yr)
-        elif dept:
-            qs = qs.filter(section__year_level__department_id=dept)
         return [(s.pk, s.subject.name) for s in qs.distinct()]
 
     def queryset(self, request, queryset):
@@ -597,11 +489,11 @@ class AttendanceSchedFilter(SimpleListFilter):
 
 
 @admin.register(Attendance)
-class AttendanceAdmin(ModelAdmin):
+class AttendanceAdmin(PortalRolePermissionMixin, ModelAdmin):
     list_display  = (
         'get_student', 'day_time', 'status', 'reason',
     )
-    list_filter            = (_att_Dept, _att_Yr, _att_Blk, AttendanceSchedFilter, 'status')
+    list_filter            = (_att_Yr, _att_Blk, AttendanceSchedFilter, 'status')
     list_per_page          = 50
     show_full_result_count = False
     search_fields = (
@@ -619,7 +511,7 @@ class AttendanceAdmin(ModelAdmin):
             .select_related(
                 'record__student',
                 'record__schedule__subject',
-                'record__schedule__section__year_level__department',
+                'record__schedule__section__year_level',
             )
         )
 
@@ -627,12 +519,10 @@ class AttendanceAdmin(ModelAdmin):
     def changelist_view(self, request, extra_context=None):
         extra_context = extra_context or {}
 
-        dept_id  = request.GET.get('dept')
         yr_id    = request.GET.get('yr')
         blk_id   = request.GET.get('blk')
         sched_id = request.GET.get('sched')
 
-        active_dept  = Department.objects.filter(pk=dept_id).first()  if dept_id  else None
         active_yr    = YearLevel.objects.filter(pk=yr_id).first()     if yr_id    else None
         active_blk   = Section.objects.filter(pk=blk_id).first()      if blk_id   else None
         active_sched = Schedule.objects.select_related('subject').filter(pk=sched_id).first() \
@@ -667,25 +557,14 @@ class AttendanceAdmin(ModelAdmin):
                 self.message_user(request, f"Successfully updated {updated_count} attendance records.")
             return HttpResponseRedirect(request.get_full_path())
 
-        # Dept tabs
-        tab_depts = [
-            {
-                'obj':    d,
-                'url':    _tab_url(request, dept=d.pk, yr=None, blk=None, sched=None),
-                'active': str(d.pk) == str(dept_id),
-            }
-            for d in Department.objects.all()
-        ]
-
         # Year Level tabs
         tab_years = []
-        if active_dept:
-            for yl in YearLevel.objects.filter(department=active_dept).order_by('order'):
-                tab_years.append({
-                    'obj':    yl,
-                    'url':    _tab_url(request, yr=yl.pk, blk=None, sched=None),
-                    'active': str(yl.pk) == str(yr_id),
-                })
+        for yl in YearLevel.objects.all().order_by('order'):
+            tab_years.append({
+                'obj':    yl,
+                'url':    _tab_url(request, yr=yl.pk, blk=None, sched=None),
+                'active': str(yl.pk) == str(yr_id),
+            })
 
         # Block tabs
         tab_blocks = []
@@ -753,18 +632,14 @@ class AttendanceAdmin(ModelAdmin):
                 })
 
         extra_context.update({
-            'tab_depts':    tab_depts,
             'tab_years':    tab_years,
             'tab_blocks':   tab_blocks,
             'att_courses':  att_courses,
-            'active_dept':  active_dept,
             'active_yr':    active_yr,
             'active_blk':   active_blk,
             'active_sched': active_sched,
             'matrix_dates': matrix_dates,
             'matrix_students': matrix_students,
-            'all_dept_url': _tab_url(request, dept=None, yr=None, blk=None, sched=None),
-
             'all_yr_url':   _tab_url(request, yr=None, blk=None, sched=None),
             'all_blk_url':  _tab_url(request, blk=None, sched=None),
             'all_sched_url':_tab_url(request, sched=None),
@@ -789,19 +664,19 @@ class AttendanceAdmin(ModelAdmin):
 # ══════════════════════════════════════════════════════════════════════════════
 
 @admin.register(SchoolYear)
-class SchoolYearAdmin(ModelAdmin):
+class SchoolYearAdmin(PortalRolePermissionMixin, ModelAdmin):
     list_display  = ('name', 'user')
     search_fields = ('name',)
 
 
 @admin.register(Semester)
-class SemesterAdmin(ModelAdmin):
+class SemesterAdmin(PortalRolePermissionMixin, ModelAdmin):
     list_display  = ('name', 'user')
     search_fields = ('name',)
 
 
 @admin.register(SchoolYearSemester)
-class SchoolYearSemesterAdmin(ModelAdmin):
+class SchoolYearSemesterAdmin(PortalRolePermissionMixin, ModelAdmin):
     list_display  = ('school_year', 'semester', 'is_active')
     search_fields = ('school_year__name', 'semester__name')
     list_filter   = ('is_active',)
@@ -817,7 +692,7 @@ class GradingTemplateItemInline(TabularInline):
 
 
 @admin.register(GradingTemplate)
-class GradingTemplateAdmin(ModelAdmin):
+class GradingTemplateAdmin(PortalRolePermissionMixin, ModelAdmin):
     list_display  = ('user', 'subject')
     inlines       = [GradingTemplateItemInline]
     search_fields = ('user__username', 'subject__name')
@@ -825,12 +700,12 @@ class GradingTemplateAdmin(ModelAdmin):
 
 
 @admin.register(GradingTemplateItem)
-class GradingTemplateItemAdmin(ModelAdmin):
+class GradingTemplateItemAdmin(PortalRolePermissionMixin, ModelAdmin):
     list_display = ('grading_template', 'type', 'weight')
 
 
 @admin.register(GradePart)
-class GradePartAdmin(ModelAdmin):
+class GradePartAdmin(PortalRolePermissionMixin, ModelAdmin):
     list_display  = ('schedule', 'period', 'weight')
     autocomplete_fields = ['schedule', 'period']
 
@@ -840,7 +715,7 @@ class GradePartAdmin(ModelAdmin):
 # ══════════════════════════════════════════════════════════════════════════════
 
 @admin.register(UserProfile)
-class UserProfileAdmin(ModelAdmin):
-    list_display  = ('user', 'is_teacher')
+class UserProfileAdmin(PortalRolePermissionMixin, ModelAdmin):
+    list_display  = ('user', 'is_teacher', 'position')
     list_filter   = ('is_teacher',)
     search_fields = ('user__username', 'user__first_name', 'user__last_name')
