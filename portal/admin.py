@@ -18,9 +18,9 @@ from .models import (
 
 # ─── Site Branding ────────────────────────────────────────────────────────────
 
-admin.site.site_header = "CSS Department Portal Administration"
-admin.site.site_title  = "CSS Department Portal"
-admin.site.index_title = "CSS Department Dashboard"
+admin.site.site_header = "CCS Department Portal Administration"
+admin.site.site_title  = "CCS Department Portal"
+admin.site.index_title = "CCS Department Dashboard"
 
 
 # ══════════════════════════════════════════════════════════════════════════════

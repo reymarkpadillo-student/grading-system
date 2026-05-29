@@ -114,8 +114,8 @@ IS_FACULTY = lambda request: request.user.is_superuser or (hasattr(request.user,
 IS_ANY_STAFF = lambda request: request.user.is_staff
 
 UNFOLD = {
-    "SITE_TITLE": "CSS Department Admin",
-    "SITE_HEADER": "CSS Department Portal",
+    "SITE_TITLE": "CCS Department Admin",
+    "SITE_HEADER": "CCS Department Portal",
     "SITE_URL": "/",
     "SITE_ICON": {
         "light": lambda request: "/static/img/Picture2.png",

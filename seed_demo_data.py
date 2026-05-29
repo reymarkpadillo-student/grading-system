@@ -1,5 +1,5 @@
 """
-Realistic demo data seed for the MC Portal Grading System (CSS Department Only).
+Realistic demo data seed for the MC Portal Grading System (CCS Department Only).
 Student usernames = ID numbers (e.g. 240101)
 Format: {year_enrolled}{dept_code}{seq:02d}
 """
@@ -21,7 +21,7 @@ from portal.models import (
 )
 
 print("=" * 55)
-print("  MC Portal — Realistic CSS Demo Data Seeder")
+print("  MC Portal — Realistic CCS Demo Data Seeder")
 print("=" * 55)
 
 # ─── Clear existing data (fresh seed) ────────────────────────────────────────
@@ -48,7 +48,7 @@ print("  Done.")
 admin = User.objects.get(username='admin')
 
 # ─── Year Levels ────────────────────────────────
-print("\n[2/7] Creating CSS Year Levels...")
+print("\n[2/7] Creating CCS Year Levels...")
 yl_names = ['1st Year', '2nd Year', '3rd Year', '4th Year']
 yl_objs = {}
 for i, name in enumerate(yl_names, 1):
@@ -60,7 +60,7 @@ for i, name in enumerate(yl_names, 1):
     print(f"  Year Level: {name}")
 
 # ─── Blocks ───────────────────────────────────────────────────────────────────
-print("\n[3/7] Creating CSS Blocks...")
+print("\n[3/7] Creating CCS Blocks...")
 BLOCKS = ["Block A", "Block B", "Block C"]
 block_objs = {}  # (year, block) -> Section
 for name, yl in yl_objs.items():
@@ -146,7 +146,7 @@ for teacher, names in SUBJECTS_ASSIGNMENT.items():
         print(f"  Subject: {name} (Teacher: {teacher.get_full_name()})")
 
 # ─── Students (CCS Only) ───────────────────────────────────────────────────────
-print("\n[7/7] Creating CSS Students...")
+print("\n[7/7] Creating CCS Students...")
 STUDENT_NAMES = [
     ("John Jarvey",   "Millares"),   ("Maria Kristine", "Dela Cruz"),
     ("Carlo Angelo",  "Reyes"),      ("Angelica Joy",   "Santos"),
